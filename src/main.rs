@@ -1,6 +1,12 @@
 extern crate discord;
+extern crate toml;
+extern crate serde;
 
-use std::env;
+#[macro_use]
+extern crate serde_derive;
+
+use std::fs::File;
+use std::io::prelude::*;
 use discord::{Discord, State};
 use discord::model::Event;
 
@@ -10,11 +16,21 @@ use discord::model::Event;
 // "!dj stop" will stop playing, and "!dj quit" will quit the voice channel.
 // The bot will quit any voice channel it is the last user in.
 
+#[derive(Debug, Deserialize)]
+struct Config {
+    discord_token: String,
+    command_prefix: String,
+}
+
 pub fn main() {
+    // Load config file
+    let mut file = File::open("config/config.toml").expect("failed to open config file");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).expect("failed to read config file");
+    let config: Config = toml::from_str(&contents).expect("failed to parse config file");
+
     // Log in to Discord using a bot token from the environment
-    let discord = Discord::from_bot_token(
-        &env::var("DISCORD_TOKEN").expect("Expected token"),
-    ).expect("login failed");
+    let discord = Discord::from_bot_token(&config.discord_token).expect("login failed");
 
     // establish websocket and voice connection
     let (mut connection, ready) = discord.connect().expect("connect failed");
@@ -55,7 +71,7 @@ pub fn main() {
                 let first_word = split.next().unwrap_or("");
                 let argument = split.next().unwrap_or("");
 
-                let prefix = "!";
+                let prefix = &config.command_prefix;
 
                 if first_word.starts_with(prefix) {
                     let vchan = state.find_voice_user(message.author.id);
