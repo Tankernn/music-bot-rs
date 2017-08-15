@@ -8,12 +8,13 @@ extern crate serde_derive;
 use std::fs::File;
 use std::io::prelude::*;
 use discord::{Discord, State};
-use discord::model::Event;
+use discord::model::{Event, ChannelId};
 
 #[derive(Debug, Deserialize)]
 struct Config {
     discord_token: String,
     command_prefix: String,
+    command_channel: Option<u64>,
 }
 
 pub fn main() {
@@ -58,6 +59,13 @@ pub fn main() {
                 // safeguard: stop if the message is from us
                 if message.author.id == state.user().id {
                     continue
+                }
+
+                // ignore message outside of command channel
+                if let Some(channel_id) = config.command_channel {
+                    if ChannelId(channel_id) != message.channel_id {
+                        continue
+                    }
                 }
 
                 // reply to a command if there was one

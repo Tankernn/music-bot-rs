@@ -1,2 +1,4 @@
 discord_token = "token goes here"
 command_prefix = "!"
+# Optionally limit the bot to only accept commands from a specific channel
+# command_channel = channel_id_here
