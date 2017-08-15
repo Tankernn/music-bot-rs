@@ -67,7 +67,7 @@ pub fn main() {
                 }
 
                 // reply to a command if there was one
-                let mut split = message.content.split(' ');
+                let mut split = message.content.split_whitespace();
                 let first_word = split.next().unwrap_or("");
                 let argument = split.next().unwrap_or("");
 
