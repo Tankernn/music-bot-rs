@@ -10,12 +10,6 @@ use std::io::prelude::*;
 use discord::{Discord, State};
 use discord::model::Event;
 
-// A simple DJ bot example.
-// Use by issuing the command "!dj <youtube-link>" in PM or a visible text channel.
-// The bot will join the voice channel of the person issuing the command.
-// "!dj stop" will stop playing, and "!dj quit" will quit the voice channel.
-// The bot will quit any voice channel it is the last user in.
-
 #[derive(Debug, Deserialize)]
 struct Config {
     discord_token: String,
