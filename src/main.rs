@@ -45,7 +45,6 @@ pub fn main() {
 
 		match event {
 			Event::MessageCreate(message) => {
-				use std::ascii::AsciiExt;
 				// safeguard: stop if the message is from us
 				if message.author.id == state.user().id {
 					continue
@@ -56,29 +55,40 @@ pub fn main() {
 				let first_word = split.next().unwrap_or("");
 				let argument = split.next().unwrap_or("");
 
-				if first_word.eq_ignore_ascii_case("!dj") {
+				let prefix = "!";
+
+				if first_word.starts_with(prefix) {
 					let vchan = state.find_voice_user(message.author.id);
-					if argument.eq_ignore_ascii_case("stop") {
-						vchan.map(|(sid, _)| connection.voice(sid).stop());
-					} else if argument.eq_ignore_ascii_case("quit") {
-						vchan.map(|(sid, _)| connection.drop_voice(sid));
-					} else {
-						let output = if let Some((server_id, channel_id)) = vchan {
-							match discord::voice::open_ytdl_stream(argument) {
-								Ok(stream) => {
-									let voice = connection.voice(server_id);
-									voice.set_deaf(true);
-									voice.connect(channel_id);
-									voice.play(stream);
-									String::new()
-								},
-								Err(error) => format!("Error: {}", error),
+					let command: String = first_word.chars().skip(prefix.chars().count()).collect();
+
+					match command.as_ref() {
+						"stop" => {
+							vchan.map(|(sid, _)| connection.voice(sid).stop());
+						},
+						"quit" => {
+							vchan.map(|(sid, _)| connection.drop_voice(sid));
+						},
+						"play" => {
+							let output = if let Some((server_id, channel_id)) = vchan {
+								match discord::voice::open_ytdl_stream(argument) {
+									Ok(stream) => {
+										let voice = connection.voice(server_id);
+										voice.set_deaf(true);
+										voice.connect(channel_id);
+										voice.play(stream);
+										String::new()
+									},
+									Err(error) => format!("Error: {}", error),
+								}
+							} else {
+								"You must be in a voice channel to DJ".to_owned()
+							};
+							if !output.is_empty() {
+								warn(discord.send_message(message.channel_id, &output, "", false));
 							}
-						} else {
-							"You must be in a voice channel to DJ".to_owned()
-						};
-						if !output.is_empty() {
-							warn(discord.send_message(message.channel_id, &output, "", false));
+						},
+						_ => {
+
 						}
 					}
 				}
