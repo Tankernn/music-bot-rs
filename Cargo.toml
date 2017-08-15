@@ -1,0 +1,7 @@
+[package]
+name = "music-bot-rs"
+version = "0.1.0"
+authors = ["frans <frans@tankernn.eu>"]
+
+[dependencies]
+discord = "0.8.0"
