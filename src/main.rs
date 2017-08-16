@@ -1,20 +1,25 @@
 extern crate discord;
 extern crate toml;
 extern crate serde;
+extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
 
+use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
+use std::process::Command;
 use discord::{Discord, State};
 use discord::model::{Event, ChannelId};
+use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
 struct Config {
     discord_token: String,
     command_prefix: String,
     command_channel: Option<u64>,
+    cache_dir: String,
 }
 
 pub fn main() {
@@ -23,6 +28,9 @@ pub fn main() {
     let mut contents = String::new();
     file.read_to_string(&mut contents).expect("failed to read config file");
     let config: Config = toml::from_str(&contents).expect("failed to parse config file");
+
+    // Ensure cache dir exists
+    fs::create_dir_all(&config.cache_dir).expect("could not create cache dir");
 
     // Log in to Discord using a bot token from the environment
     let discord = Discord::from_bot_token(&config.discord_token).expect("login failed");
@@ -71,7 +79,7 @@ pub fn main() {
                 // reply to a command if there was one
                 let mut split = message.content.split_whitespace();
                 let first_word = split.next().unwrap_or("");
-                let argument = split.next().unwrap_or("");
+                let arguments = split.collect::<Vec<&str>>().join(" ");
 
                 let prefix = &config.command_prefix;
 
@@ -88,15 +96,33 @@ pub fn main() {
                         },
                         "play" => {
                             let output = if let Some((server_id, channel_id)) = vchan {
-                                match discord::voice::open_ytdl_stream(argument) {
-                                    Ok(stream) => {
-                                        let voice = connection.voice(server_id);
-                                        voice.set_deaf(true);
-                                        voice.connect(channel_id);
-                                        voice.play(stream);
-                                        String::new()
-                                    },
-                                    Err(error) => format!("Error: {}", error),
+                                warn(discord.send_message(message.channel_id, &format!("Searching for \"{}\"...", arguments), "", false));
+                                let output = Command::new("youtube-dl")
+                                        .arg("-f")
+                                        .arg("webm[abr>0]/bestaudio/best")
+                                        .arg("--output")
+                                        .arg(format!("{}/%(title)s.%(ext)s", config.cache_dir))
+                                        .arg("--print-json")
+                                        .arg("--default-search")
+                                        .arg("ytsearch")
+                                        .arg(&arguments)
+                                        .output()
+                                        .expect("failed to spawn youtube-dl process");
+                                if output.status.success() {
+                                    let video_meta: Value = serde_json::from_slice(&output.stdout).expect("Failed to parse youtube-dl output");
+                                    warn(discord.send_message(message.channel_id, &format!("Playing **{}** ({})", video_meta["title"].as_str().unwrap(), video_meta["webpage_url"].as_str().unwrap()), "", false));
+                                    match discord::voice::open_ffmpeg_stream(video_meta["_filename"].as_str().unwrap()) {
+                                        Ok(stream) => {
+                                            let voice = connection.voice(server_id);
+                                            voice.set_deaf(true);
+                                            voice.connect(channel_id);
+                                            voice.play(stream);
+                                            String::new()
+                                        },
+                                        Err(error) => format!("Error: {}", error)
+                                    }
+                                } else {
+                                    format!("Error: {}", String::from_utf8_lossy(&output.stderr))
                                 }
                             } else {
                                 "You must be in a voice channel to DJ".to_owned()
